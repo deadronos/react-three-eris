@@ -1,6 +1,7 @@
 {
-  "name": "react-three-eris",
+  "name": "eris-ecs-miniplex-adapter",
   "version": "0.0.0",
+  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -15,26 +16,17 @@
     "dist"
   ],
   "sideEffects": false,
-  "peerDependencies": {
-    "@react-three/fiber": "^9.0.0",
-    "react": "^19.0.0",
-    "three": "^0.182.0"
-  },
   "dependencies": {
-    "@dimforge/rapier3d-compat": "^0.19.3"
+    "miniplex": "^2.0.0",
+    "react-three-eris": "workspace:*"
   },
   "devDependencies": {
-    "@react-three/fiber": "^9.5.0",
-    "@types/react": "^19.2.10",
-    "react": "^19.2.4",
-    "three": "^0.182.0",
-    "rimraf": "^6.1.2",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },
   "scripts": {
     "build": "tsup",
-    "clean": "rimraf dist",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }
+
