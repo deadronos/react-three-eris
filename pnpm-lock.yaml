@@ -14,6 +14,9 @@ importers:
       jsdom:
         specifier: ^27.4.0
         version: 27.4.0
+      three:
+        specifier: ^0.182.0
+        version: 0.182.0
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.0.10)(jsdom@27.4.0)
