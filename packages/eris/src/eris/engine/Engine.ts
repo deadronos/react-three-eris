@@ -1,5 +1,5 @@
 import { PHASE_ORDER, type Phase } from "./phases";
-import type { System } from "./system";
+import type { System, SystemContext } from "./system";
 import { World } from "../world/World";
 import { NoopNet } from "../net/NoopNet";
 import type { NetDriver } from "../net/NetDriver";
@@ -16,6 +16,36 @@ export interface EngineConfig {
 }
 
 type PhaseSystems = Record<Phase, System[]>;
+
+function assertFiniteNumber(name: string, value: number): void {
+  if (!Number.isFinite(value)) {
+    throw new Error(`${name} must be a finite number (got: ${value})`);
+  }
+}
+
+function assertPositiveNumber(name: string, value: number): void {
+  assertFiniteNumber(name, value);
+  if (value <= 0) {
+    throw new Error(`${name} must be > 0 (got: ${value})`);
+  }
+}
+
+function assertNonNegativeNumber(name: string, value: number): void {
+  assertFiniteNumber(name, value);
+  if (value < 0) {
+    throw new Error(`${name} must be >= 0 (got: ${value})`);
+  }
+}
+
+function assertIntegerAtLeast(name: string, value: number, min: number): void {
+  assertFiniteNumber(name, value);
+  if (!Number.isInteger(value)) {
+    throw new Error(`${name} must be an integer (got: ${value})`);
+  }
+  if (value < min) {
+    throw new Error(`${name} must be >= ${min} (got: ${value})`);
+  }
+}
 
 function makePhaseMap(): PhaseSystems {
   return {
@@ -56,6 +86,12 @@ export class Engine {
     this.maxSubSteps = config.maxSubSteps ?? 5;
     this.maxFrameDt = config.maxFrameDt ?? 0.25;
     this.timeScale = config.timeScale ?? 1;
+
+    // Validate config early so misconfiguration doesn't create pathological stepping.
+    assertPositiveNumber("Engine.fixedDt", this.fixedDt);
+    assertIntegerAtLeast("Engine.maxSubSteps", this.maxSubSteps, 1);
+    assertPositiveNumber("Engine.maxFrameDt", this.maxFrameDt);
+    assertNonNegativeNumber("Engine.timeScale", this.timeScale);
 
     const physics = config.physics ?? NoopPhysics;
     const net = config.net ?? NoopNet;
@@ -104,6 +140,8 @@ export class Engine {
   frame(frameDtSeconds: number): void {
     if (!this._ready) return;
 
+    assertNonNegativeNumber("Engine.frame(frameDtSeconds)", frameDtSeconds);
+
     const scaled = frameDtSeconds * this.timeScale;
     const dt = Math.max(0, Math.min(scaled, this.maxFrameDt));
 
@@ -113,7 +151,13 @@ export class Engine {
     this.world.net.pollIncoming(this.world.now);
 
     // 1) preFrame once
-    this.runPhase("preFrame", dt);
+    this.runPhase("preFrame", dt, {
+      phase: "preFrame",
+      frameDt: dt,
+      fixedDt: this.fixedDt,
+      now: this.world.now,
+      tick: this.world.tick
+    });
 
     this.world.net.applyIncoming(this.world);
 
@@ -121,32 +165,79 @@ export class Engine {
     this.accumulator += dt;
     let subSteps = 0;
     while (this.accumulator >= this.fixedDt && subSteps < this.maxSubSteps) {
-      this.runPhase("fixed", this.fixedDt);
+      this.runPhase("fixed", this.fixedDt, {
+        phase: "fixed",
+        frameDt: dt,
+        fixedDt: this.fixedDt,
+        now: this.world.now,
+        tick: this.world.tick,
+        subStep: subSteps
+      });
       this.world.physics.step(this.fixedDt);
-      this.runPhase("postPhysicsFixed", this.fixedDt);
+      this.runPhase("postPhysicsFixed", this.fixedDt, {
+        phase: "postPhysicsFixed",
+        frameDt: dt,
+        fixedDt: this.fixedDt,
+        now: this.world.now,
+        tick: this.world.tick,
+        subStep: subSteps
+      });
 
       this.world.tick += 1;
       this.accumulator -= this.fixedDt;
       subSteps += 1;
     }
 
+    // Soft-drop policy: if we hit maxSubSteps and still have >= fixedDt of debt,
+    // discard the remainder so the accumulator can't grow without bound.
+    let droppedTime = 0;
+    if (subSteps >= this.maxSubSteps && this.accumulator > this.fixedDt) {
+      droppedTime = this.accumulator - this.fixedDt;
+      this.accumulator = this.fixedDt;
+    }
+
     // 3) variable phases once
-    this.runPhase("update", dt);
-    this.runPhase("late", dt);
+    this.runPhase("update", dt, {
+      phase: "update",
+      frameDt: dt,
+      fixedDt: this.fixedDt,
+      now: this.world.now,
+      tick: this.world.tick,
+      subStepsThisFrame: subSteps,
+      droppedTime
+    });
+    this.runPhase("late", dt, {
+      phase: "late",
+      frameDt: dt,
+      fixedDt: this.fixedDt,
+      now: this.world.now,
+      tick: this.world.tick,
+      subStepsThisFrame: subSteps,
+      droppedTime
+    });
 
     // If we hit maxSubSteps, accumulator can still exceed fixedDt. Clamp alpha so
     // render interpolation stays in a stable [0..1] range.
-    const alphaRaw = this.fixedDt > 0 ? this.accumulator / this.fixedDt : 0;
+    const alphaRaw = this.accumulator / this.fixedDt;
     const alpha = Math.max(0, Math.min(alphaRaw, 1));
-    this.runPhase("renderApply", alpha);
+    this.runPhase("renderApply", alpha, {
+      phase: "renderApply",
+      frameDt: dt,
+      fixedDt: this.fixedDt,
+      alpha,
+      now: this.world.now,
+      tick: this.world.tick,
+      subStepsThisFrame: subSteps,
+      droppedTime
+    });
 
     this.world.net.collectOutgoing(this.world);
     this.world.net.flushOutgoing();
   }
 
-  private runPhase(phase: Phase, dt: number): void {
+  private runPhase(phase: Phase, dt: number, ctx: SystemContext): void {
     const systems = this.systemsByPhase[phase];
-    for (const sys of systems) sys.run(this.world, dt);
+    for (const sys of systems) sys.run(this.world, dt, ctx);
   }
 }
 

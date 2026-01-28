@@ -22,6 +22,17 @@ function makePhysics(overrides?: Partial<PhysicsModule>): PhysicsModule {
 }
 
 describe("Engine", () => {
+  it("throws on invalid EngineConfig values", () => {
+    expect(() => new Engine({ fixedDt: 0 })).toThrow(/fixedDt/i);
+    expect(() => new Engine({ fixedDt: -1 })).toThrow(/fixedDt/i);
+
+    expect(() => new Engine({ maxSubSteps: 0 })).toThrow(/maxSubSteps/i);
+    expect(() => new Engine({ maxSubSteps: 1.5 })).toThrow(/maxSubSteps/i);
+
+    expect(() => new Engine({ maxFrameDt: 0 })).toThrow(/maxFrameDt/i);
+    expect(() => new Engine({ timeScale: -1 })).toThrow(/timeScale/i);
+  });
+
   it("does not run systems before init()", () => {
     const engine = new Engine();
 
@@ -118,5 +129,31 @@ describe("Engine", () => {
     engine.frame(0.35); // would leave accumulator at 0.15 -> raw alpha 1.5 without clamping
 
     expect(alpha).toBe(1);
+  });
+
+  it("reports droppedTime when maxSubSteps is hit (soft-drop)", async () => {
+    const engine = new Engine({ fixedDt: 0.1, maxSubSteps: 2, maxFrameDt: 1 });
+    let dropped: number | undefined;
+
+    engine.registerSystem({
+      name: "capture.droppedTime",
+      phase: "update",
+      run(_world: World, _dt: number, ctx) {
+        dropped = ctx?.droppedTime;
+      }
+    });
+
+    await engine.init();
+    engine.frame(0.35);
+
+    expect(dropped).toBeDefined();
+    expect(dropped).toBeGreaterThan(0);
+  });
+
+  it("throws on invalid frame dt after init", async () => {
+    const engine = new Engine();
+    await engine.init();
+    expect(() => engine.frame(Number.NaN)).toThrow(/frame/i);
+    expect(() => engine.frame(-0.01)).toThrow(/frame/i);
   });
 });

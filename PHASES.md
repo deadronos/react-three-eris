@@ -63,18 +63,27 @@ Pseudo-code:
 preFrame(dt)
 
 accumulator += clamp(dt)
-while accumulator >= fixedDt:
+subSteps = 0
+while accumulator >= fixedDt && subSteps < maxSubSteps:
   fixed(fixedDt)
   physics.step(fixedDt)
   postPhysicsFixed(fixedDt)
   capturePoseSnapshot()
   tick++
   accumulator -= fixedDt
+  subSteps++
 
-alpha = accumulator / fixedDt
+// If we hit maxSubSteps and still have >= fixedDt of debt, we soft-drop the
+// remainder so the accumulator can't grow without bound.
+if subSteps == maxSubSteps && accumulator > fixedDt:
+  accumulator = fixedDt
+
+alpha = clamp(accumulator / fixedDt, 0, 1)
 
 update(dt)
 late(dt)
+// Note: renderApply receives `alpha` in the `dt` parameter for legacy reasons.
+// Prefer reading `ctx.alpha` when available.
 renderApply(alpha)
 ```
 
@@ -196,6 +205,12 @@ renderApply(alpha)
 
 **Input**
 - `alpha` in [0..1], representing how far the render frame is between two fixed ticks
+
+**Important note (dt vs alpha)**
+
+For historical reasons, the engine passes `alpha` as the `dt` argument to systems
+in `renderApply`. Newer systems should prefer reading `ctx.alpha` (a `SystemContext`)
+instead of treating `dt` as seconds.
 
 **Allowed**
 - Read pose history buffers and interpolate
