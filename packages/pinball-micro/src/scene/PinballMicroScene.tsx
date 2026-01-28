@@ -46,6 +46,11 @@ type BumperState = {
   cooldownUntil: number;
 };
 
+// Visual and physics constants for flippers (kept in sync).
+const FLIPPER_HALF_LEN = 0.75;
+const FLIPPER_HALF_H = 0.09;
+const FLIPPER_HALF_W = 0.18;
+
 function getConfig(world: Engine["world"]): PinballConfig {
   const existing = world.get<PinballConfig>("pinball.config");
   if (existing) return existing;
@@ -91,6 +96,13 @@ function clamp01(x: number): number {
 function yawToQuat(yaw: number): { x: number; y: number; z: number; w: number } {
   const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
   return { x: q.x, y: q.y, z: q.z, w: q.w };
+}
+
+function setColliderYaw(desc: any, yaw: number): any {
+  if (desc && typeof desc.setRotation === "function") {
+    return desc.setRotation(yawToQuat(yaw));
+  }
+  return desc;
 }
 
 function setRigidBodyPoseKinematic(rb: any, pivot: { x: number; y: number; z: number }, yaw: number): void {
@@ -389,11 +401,28 @@ export function PinballMicroScene(props: { engine: Engine }) {
           .setFriction(0.6)
       );
       // Back wall (top).
+      // Instead of a perfectly flat back wall (which tends to bounce the ball
+      // straight back down the center), use a shallow V-shape to add lateral
+      // deflection and make the play feel more "pinball".
+      const backZ = -cfg.tableHalfLength - wallT;
+      const backYaw = 0.32;
       world.createCollider(
-        RAPIER.ColliderDesc.cuboid(cfg.tableHalfWidth, wallH / 2, wallT)
-          .setTranslation(0, wallY, -cfg.tableHalfLength - wallT)
-          .setRestitution(0.25)
-          .setFriction(0.6)
+        setColliderYaw(
+          RAPIER.ColliderDesc.cuboid(cfg.tableHalfWidth * 0.65, wallH / 2, wallT)
+            .setTranslation(-cfg.tableHalfWidth * 0.2, wallY, backZ)
+            .setRestitution(0.22)
+            .setFriction(0.6),
+          +backYaw
+        )
+      );
+      world.createCollider(
+        setColliderYaw(
+          RAPIER.ColliderDesc.cuboid(cfg.tableHalfWidth * 0.65, wallH / 2, wallT)
+            .setTranslation(cfg.tableHalfWidth * 0.2, wallY, backZ)
+            .setRestitution(0.22)
+            .setFriction(0.6),
+          -backYaw
+        )
       );
 
       // Plunger lane guide wall (keeps the ball on the right at the start).
@@ -435,19 +464,17 @@ export function PinballMicroScene(props: { engine: Engine }) {
 
       // Flippers (kinematic). Each flipper is a kinematic body at the pivot, with a cuboid collider offset.
       const flipperY = 0.18;
-      const flipperHalfLen = 0.85;
-      const flipperHalfH = 0.09;
-      const flipperHalfW = 0.18;
 
-      const leftPivot = { x: -1.25, y: flipperY, z: 4.3 };
-      const rightPivot = { x: 1.25, y: flipperY, z: 4.3 };
+      // Spread pivots slightly so the flippers don't overlap visually or physically.
+      const leftPivot = { x: -1.55, y: flipperY, z: 4.35 };
+      const rightPivot = { x: 1.55, y: flipperY, z: 4.35 };
 
       const leftRb = world.createRigidBody(
         RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(leftPivot.x, leftPivot.y, leftPivot.z)
       );
       world.createCollider(
-        RAPIER.ColliderDesc.cuboid(flipperHalfLen, flipperHalfH, flipperHalfW)
-          .setTranslation(flipperHalfLen, 0, 0)
+        RAPIER.ColliderDesc.cuboid(FLIPPER_HALF_LEN, FLIPPER_HALF_H, FLIPPER_HALF_W)
+          .setTranslation(FLIPPER_HALF_LEN, 0, 0)
           .setRestitution(0.25)
           .setFriction(0.9),
         leftRb
@@ -457,8 +484,8 @@ export function PinballMicroScene(props: { engine: Engine }) {
         RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(rightPivot.x, rightPivot.y, rightPivot.z)
       );
       world.createCollider(
-        RAPIER.ColliderDesc.cuboid(flipperHalfLen, flipperHalfH, flipperHalfW)
-          .setTranslation(-flipperHalfLen, 0, 0)
+        RAPIER.ColliderDesc.cuboid(FLIPPER_HALF_LEN, FLIPPER_HALF_H, FLIPPER_HALF_W)
+          .setTranslation(-FLIPPER_HALF_LEN, 0, 0)
           .setRestitution(0.25)
           .setFriction(0.9),
         rightRb
@@ -531,8 +558,8 @@ export function PinballMicroScene(props: { engine: Engine }) {
 
       {/* Flippers */}
       <group ref={leftFlipperGroupRef}>
-        <mesh castShadow position={[0.85, 0, 0]}>
-          <boxGeometry args={[1.7, 0.18, 0.36]} />
+        <mesh castShadow position={[FLIPPER_HALF_LEN, 0, 0]}>
+          <boxGeometry args={[FLIPPER_HALF_LEN * 2, FLIPPER_HALF_H * 2, FLIPPER_HALF_W * 2]} />
           <meshStandardMaterial color="#f72585" />
         </mesh>
         <mesh position={[0, 0.11, 0]}>
@@ -542,8 +569,8 @@ export function PinballMicroScene(props: { engine: Engine }) {
       </group>
 
       <group ref={rightFlipperGroupRef}>
-        <mesh castShadow position={[-0.85, 0, 0]}>
-          <boxGeometry args={[1.7, 0.18, 0.36]} />
+        <mesh castShadow position={[-FLIPPER_HALF_LEN, 0, 0]}>
+          <boxGeometry args={[FLIPPER_HALF_LEN * 2, FLIPPER_HALF_H * 2, FLIPPER_HALF_W * 2]} />
           <meshStandardMaterial color="#4cc9f0" />
         </mesh>
         <mesh position={[0, 0.11, 0]}>
