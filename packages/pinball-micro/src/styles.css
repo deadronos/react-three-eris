@@ -1,0 +1,104 @@
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0b0f17;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+
+.pinballRoot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0f17;
+}
+
+.pinballCanvas {
+  position: absolute;
+  inset: 0;
+}
+
+.pinballHud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #e7edf8;
+  font-size: 13px;
+  line-height: 1.35;
+  pointer-events: none;
+  min-width: 220px;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.pinballHud__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pinballHud__label {
+  opacity: 0.75;
+}
+
+.pinballHud__value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pinballHud__hint {
+  margin-top: 8px;
+  opacity: 0.9;
+}
+
+.pinballHud__strong {
+  font-weight: 700;
+}
+
+.pinballHud__plunger {
+  margin-top: 8px;
+  opacity: 0.85;
+}
+
+.pinballHud__plungerTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pinballHud__progress {
+  width: 100%;
+  height: 8px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.pinballHud__progress::-webkit-progress-bar {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+.pinballHud__progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #4cc9f0, #f72585);
+  border-radius: 999px;
+}
+
+.pinballHud__progress::-moz-progress-bar {
+  background: linear-gradient(90deg, #4cc9f0, #f72585);
+  border-radius: 999px;
+}
