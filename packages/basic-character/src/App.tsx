@@ -1,25 +1,43 @@
 import { useEffect, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
+import rapierWasmUrl from "@rapier-wasm-url";
 import { createEngine, createKeyboardInput, createRapierPhysics, EngineLoop } from "react-three-eris";
 import { BasicCharacterScene, registerBasicCharacterSystems } from "./scene/BasicCharacterScene";
 
 export function App() {
-  const engine = useMemo(() => {
-    const e = createEngine({
-      fixedDt: 1 / 60,
-      physics: createRapierPhysics()
-    });
-
-    // Input lives in preFrame, but the event listeners are created once.
-    e.world.set("input.keyboard", createKeyboardInput());
-
-    registerBasicCharacterSystems(e);
-    return e;
-  }, []);
+  const engine = useMemo(
+    () =>
+      createEngine({
+        fixedDt: 1 / 60,
+        physics: createRapierPhysics({ wasmUrl: rapierWasmUrl })
+      }),
+    []
+  );
 
   useEffect(() => {
-    const kb = engine.world.get<ReturnType<typeof createKeyboardInput>>("input.keyboard");
-    return () => kb?.dispose();
+    // Register systems once per engine instance (StrictMode can remount components in dev).
+    if (!engine.world.has("basicCharacter.systemsInstalled")) {
+      registerBasicCharacterSystems(engine);
+      engine.world.set("basicCharacter.systemsInstalled", true);
+    }
+
+    // Input is mounted/unmounted with the React tree.
+    const kb = createKeyboardInput();
+    engine.world.set("input.keyboard", kb);
+
+    // Ensure physics/net init happens even if an app forgets to mount <EngineLoop />.
+    void engine.init();
+
+    // Dev helper: inspect runtime state from the browser console.
+    if (import.meta.env.DEV) {
+      (window as any).__erisEngine = engine;
+      (window as any).__rapierWasmUrl = rapierWasmUrl;
+    }
+
+    return () => {
+      kb.dispose();
+      engine.world.delete("input.keyboard");
+    };
   }, [engine]);
 
   return (
@@ -38,4 +56,3 @@ export function App() {
     </Canvas>
   );
 }
-

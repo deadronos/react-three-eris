@@ -7,12 +7,18 @@ export class RapierPhysicsModule implements PhysicsModule {
   readonly kind = "rapier" as const;
 
   readonly gravity: Vec3;
+  /**
+   * Some bundlers (or some rapier builds) cannot derive a base URL for the wasm
+   * automatically. If provided, we pass it to `init({ module_or_path })`.
+   */
+  readonly wasmUrl?: unknown;
   private readonly loader: () => Promise<unknown>;
   rapier: RapierModule | null = null;
   world: unknown = null;
 
-  constructor(opts?: { gravity?: Vec3; loader?: () => Promise<unknown> }) {
+  constructor(opts?: { gravity?: Vec3; wasmUrl?: unknown; loader?: () => Promise<unknown> }) {
     this.gravity = opts?.gravity ?? { x: 0, y: -9.81, z: 0 };
+    this.wasmUrl = opts?.wasmUrl;
     this.loader =
       opts?.loader ??
       (async () => {
@@ -28,7 +34,15 @@ export class RapierPhysicsModule implements PhysicsModule {
 
     // rapier3d-compat exposes an async init() in most environments; keep this defensive.
     const initFn = (api as { init?: () => Promise<void> }).init ?? (ns as any).init;
-    if (initFn) await initFn();
+    if (initFn) {
+      // If wasmUrl is set, avoid rapier trying to guess a base URL internally.
+      // This also works around builds that have a broken default base URL.
+      if (this.wasmUrl !== undefined) {
+        await (initFn as any)({ module_or_path: this.wasmUrl });
+      } else {
+        await initFn();
+      }
+    }
 
     this.rapier = api as RapierModule;
     this.world = new (api as any).World(this.gravity);
@@ -43,6 +57,6 @@ export class RapierPhysicsModule implements PhysicsModule {
   }
 }
 
-export function createRapierPhysics(opts?: { gravity?: Vec3 }): RapierPhysicsModule {
+export function createRapierPhysics(opts?: { gravity?: Vec3; wasmUrl?: unknown }): RapierPhysicsModule {
   return new RapierPhysicsModule(opts);
 }
