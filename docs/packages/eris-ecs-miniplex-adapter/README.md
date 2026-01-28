@@ -48,3 +48,14 @@ engine.registerSystem(
 - The Miniplex world is stored inside the Eris `World` state map under `ecs.miniplex` by default.
 - You can change the storage key via `createMiniplexAdapter({ key })` and `ecsSystem({ key })`.
 
+## Typed keys + SystemContext
+
+If you prefer typed access to `World.state`, you can use `DEFAULT_ECS_STATE_KEY` and
+pass typed keys into `getEcs`/`ecsSystem`:
+
+- `getEcs(world, DEFAULT_ECS_STATE_KEY)`
+- `ecsSystem({ key: DEFAULT_ECS_STATE_KEY, ... })`
+
+`ecsSystem` also forwards an optional Eris `SystemContext` to your callback as `eris`.
+This is useful in `renderApply` where `dt` is actually alpha (0..1): prefer `eris.alpha`.
+
