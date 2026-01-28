@@ -5,6 +5,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm --filter basic-character dev",
+    "dev:pinball": "pnpm --filter pinball-micro dev",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest"

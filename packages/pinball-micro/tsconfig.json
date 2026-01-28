@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "react-three-eris": ["../eris/src/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}
